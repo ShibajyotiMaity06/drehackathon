@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Wifi, WifiOff, RefreshCw, Volume2, Smartphone, Monitor } from 'lucide-react';
+import { Sun, Wifi, WifiOff, RefreshCw, Volume2, Smartphone, Monitor, Film } from 'lucide-react';
 import { translations } from '../translations';
 import { soundFx } from '../services/soundFx';
 
@@ -13,7 +13,8 @@ export default function Header({
   deviceMode,
   setDeviceMode,
   activeVillage,
-  onChangeVillage
+  onChangeVillage,
+  onOpenVideo
 }) {
   const t = translations[language] || translations.en;
 
@@ -54,49 +55,65 @@ export default function Header({
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="header-controls">
-          {/* Audio voice guide button */}
+        {/* Quick Utilities: Audio + Device frame switch */}
+        <div className="header-quick-tools">
           <button 
             type="button" 
             className="header-tool-btn" 
             title="Listen to audio instructions" 
             onClick={handleSpeakWelcome}
+            aria-label="Audio guide"
           >
-            <Volume2 size={18} />
+            <Volume2 size={17} />
           </button>
 
-          {/* Device Frame View Toggle (Phone vs Full) */}
           <button 
             type="button" 
             className="header-tool-btn" 
             title={deviceMode === 'phone' ? 'Switch to Full Screen Tablet View' : 'Switch to Handheld Phone View'}
             onClick={() => setDeviceMode(deviceMode === 'phone' ? 'tablet' : 'phone')}
+            aria-label="Toggle device frame"
           >
-            {deviceMode === 'phone' ? <Monitor size={18} /> : <Smartphone size={18} />}
+            {deviceMode === 'phone' ? <Monitor size={17} /> : <Smartphone size={17} />}
           </button>
+        </div>
+      </div>
 
-          {/* Airplane Mode Toggle */}
-          <button 
-            type="button" 
-            className={`airplane-toggle-btn ${isAirplaneMode ? 'is-airplane' : 'is-online'}`}
-            onClick={toggleAirplaneMode}
-            title={isAirplaneMode ? 'Offline Airplane Mode active (100% on-device SQLite storage)' : 'Online Mode active'}
-          >
-            {isAirplaneMode ? (
-              <>
-                <WifiOff size={16} />
-                <span className="toggle-label">{t.airplaneMode}</span>
-              </>
-            ) : (
-              <>
-                <Wifi size={16} />
-                <span className="toggle-label">{t.onlineMode}</span>
-              </>
-            )}
-          </button>
+      {/* Action Controls Bar */}
+      <div className="header-actions-bar">
+        {/* Presentation Explainer Video Button */}
+        <button 
+          type="button" 
+          className="video-pill-btn" 
+          title="Watch Project Presentation Video" 
+          onClick={onOpenVideo}
+        >
+          <Film size={15} />
+          <span>Video Tour</span>
+        </button>
 
-          {/* Language Selector */}
+        {/* Airplane Mode Toggle */}
+        <button 
+          type="button" 
+          className={`airplane-toggle-btn ${isAirplaneMode ? 'is-airplane' : 'is-online'}`}
+          onClick={toggleAirplaneMode}
+          title={isAirplaneMode ? 'Offline Airplane Mode active (100% on-device SQLite storage)' : 'Online Mode active'}
+        >
+          {isAirplaneMode ? (
+            <>
+              <WifiOff size={14} />
+              <span className="toggle-label">{t.airplaneMode}</span>
+            </>
+          ) : (
+            <>
+              <Wifi size={14} />
+              <span className="toggle-label">{t.onlineMode}</span>
+            </>
+          )}
+        </button>
+
+        {/* Language Selector */}
+        <div className="lang-select-wrapper">
           <select 
             className="lang-select-dropdown" 
             value={language} 

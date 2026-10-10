@@ -45,10 +45,20 @@ export function calculateAuditSummary(appliances = [], hasGenerator = false, gen
   const totalMonthlyKWh = totalDailyKWh * 30;
   const monthlyElectricityBill = Math.round(totalMonthlyKWh * tariff);
 
-  // Diesel calculations
+  // Diesel calculations - dynamically scales with connected electrical load & generator running hours
   const genDailyHours = hasGenerator ? (Number(generatorHours) || 0) : 0;
-  const dailyDieselLitres = genDailyHours * ENERGY_CONSTANTS.DIESEL_CONSUMPTION_L_PER_HR;
-  const monthlyDieselLitres = dailyDieselLitres * 30;
+  
+  // Effective electrical power drawn from generator during outage (kW):
+  // Baseline load considers operating appliances with 70% diversity factor (min 0.35 kW)
+  const generatorLoadKW = Math.max(0.35, Number(((peakLoadWatts * 0.70) / 1000).toFixed(2)));
+  
+  // Specific fuel consumption:
+  // Base idling fuel consumption (~0.35 L/hr) + ~0.34 L per kWh of electrical generation
+  // E.g.: 0.8 kW load = ~0.62 L/hr; 2.5 kW load = ~1.20 L/hr; 5 kW load = ~2.05 L/hr
+  const dieselConsumptionLPerHr = Number((0.35 + (generatorLoadKW * 0.34)).toFixed(2));
+  
+  const dailyDieselLitres = Number((genDailyHours * dieselConsumptionLPerHr).toFixed(2));
+  const monthlyDieselLitres = Number((dailyDieselLitres * 30).toFixed(1));
   const monthlyDieselExpense = Math.round(monthlyDieselLitres * ENERGY_CONSTANTS.DIESEL_PRICE_PER_LITRE);
 
   // Carbon emissions (kg CO2 per month)
@@ -59,6 +69,8 @@ export function calculateAuditSummary(appliances = [], hasGenerator = false, gen
   return {
     appliances: applianceBreakdown,
     peakLoadWatts: Math.round(peakLoadWatts),
+    generatorLoadKW,
+    dieselConsumptionLPerHr,
     totalDailyKWh: Number(totalDailyKWh.toFixed(2)),
     totalMonthlyKWh: Math.round(totalMonthlyKWh),
     monthlyElectricityBill,
@@ -147,12 +159,13 @@ export function generateRecommendations(summary, appliances = []) {
   // 3. Diesel Generator Replacement with Decentralized Solar PV + Battery
   if (summary.hasGenerator && summary.generatorHours > 0) {
     const annualDieselSavings = summary.monthlyDieselExpense * 12;
-    // Sizing solar array for backup:
-    const requiredKWh = summary.generatorHours * 1.5; // backup requirement
-    const solarKWp = Math.max(1, Number((requiredKWh / ENERGY_CONSTANTS.AVG_PEAK_SUN_HOURS).toFixed(1)));
-    const batteryKWh = Math.max(2.4, Number((requiredKWh * 1.2).toFixed(1)));
+    // Sizing solar array for backup based on actual connected generator load:
+    const genLoad = summary.generatorLoadKW || Math.max(0.4, (summary.peakLoadWatts * 0.70) / 1000);
+    const requiredKWh = summary.generatorHours * genLoad;
+    const solarKWp = Math.max(1, Number((requiredKWh / (ENERGY_CONSTANTS.AVG_PEAK_SUN_HOURS * ENERGY_CONSTANTS.SOLAR_SYSTEM_PERFORMANCE_RATIO)).toFixed(1)));
+    const batteryKWh = Math.max(2.4, Number((requiredKWh * 1.25).toFixed(1)));
     const systemCost = Math.round((solarKWp * ENERGY_CONSTANTS.SOLAR_COST_PER_KWP) + (batteryKWh * ENERGY_CONSTANTS.LFP_BATTERY_COST_PER_KWH));
-    const paybackMonths = Number(((systemCost / annualDieselSavings) * 12).toFixed(1));
+    const paybackMonths = annualDieselSavings > 0 ? Number(((systemCost / annualDieselSavings) * 12).toFixed(1)) : 24;
     const annualDieselCO2 = Math.round(summary.monthlyDieselLitres * 12 * ENERGY_CONSTANTS.DIESEL_EMISSION_FACTOR_KG_CO2_PER_L);
 
     recommendations.push({

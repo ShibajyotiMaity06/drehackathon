@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UrjaMitra - Project Presentation Video Generator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #060a12;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #canvas-container {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: #020408;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #status-bar {
+      margin-top: 14px;
+      font-size: 15px;
+      color: #34d399;
+      font-family: 'Consolas', 'Courier New', monospace;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="videoCanvas" width="1920" height="1080"></canvas>
+  </div>
+  <div id="status-bar">Initializing Presentation Generator...</div>
+
+  <script>
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status-bar');
+
+    // High resolution project screenshots
+    const SCREEN_URLS = {
+      home: '/screenshots/screen_01_home_dashboard.png',
+      villageModal: '/screenshots/screen_01b_village_modal.png',
+      voiceAudit: '/screenshots/screen_02_voice_audit.png',
+      applianceModal: '/screenshots/screen_02b_add_appliance_modal.png',
+      feasibilityHomestay: '/screenshots/screen_03_feasibility_homestay.png',
+      feasibilityMillet: '/screenshots/screen_03b_feasibility_millet.png',
+      recommendations: '/screenshots/screen_04_recommendations.png',
+      reportSync: '/screenshots/screen_05_report_sync.png',
+      supervisorPortal: '/screenshots/screen_05b_supervisor_portal.png',
+      tabletHome: '/screenshots/screen_06_tablet_en_home.png',
+      tabletRecs: '/screenshots/screen_07_tablet_en_recommendations.png',
+      tabletReport: '/screenshots/screen_08_tablet_en_reportsync.png'
+    };
+
+    // Clean studio neural voiceover audio URLs (Zero background sound)
+    const AUDIO_URLS = {
+      intro: '/audio/scene_1_intro.mp3',
+      dashboard: '/audio/scene_2_dashboard.mp3',
+      voiceAudit: '/audio/scene_3_voice_audit.mp3',
+      feasibility: '/audio/scene_4_feasibility.mp3',
+      recommendations: '/audio/scene_5_recommendations.mp3',
+      reportSync: '/audio/scene_6_report_sync.mp3',
+      outro: '/audio/scene_7_outro.mp3'
+    };
+
+    const images = {};
+    const audioBuffers = {};
+    let audioCtx = null;
+    let audioDest = null;
+
+    // Presentation Scenes (Total 105 seconds = 1m 45s)
+    const SCENES = [
+      {
+        id: 'intro',
+        duration: 11.5,
+        audioKey: 'intro',
+        screenKey: 'tabletHome',
+        screenBadge: 'PROJECT OVERVIEW',
+        title: 'URJAMITRA (ऊर्जा मित्र)',
+        subtitle: 'Decentralized Clean Energy & Rural Enterprise Platform',
+        narration: 'Welcome to UrjaMitra, a decentralized renewable energy and rural enterprise platform, engineered specifically for field mobility across remote Indian villages.',
+        highlightPills: ['⚡ 100% Offline-First', '🎙️ Local Indic Speech', '💾 On-Device SQLite', '🇮🇳 5 Tribal Clusters'],
+        focus: { startY: 0.2, endY: 0.5, startScale: 1.0, endScale: 1.05 }
+      },
+      {
+        id: 'dashboard',
+        duration: 16.0,
+        audioKey: 'dashboard',
+        screenKey: 'home',
+        altScreenKey: 'villageModal',
+        altSwitchRatio: 0.50,
+        screenBadge: 'SCREEN 1 OF 5',
+        title: 'VILLAGE CLUSTER DASHBOARD',
+        subtitle: 'Multi-Hamlet Field Mobility & Airplane Mode Resilience',
+        narration: 'Screen one presents the Village Cluster Dashboard. Energy mitras manage audits across remote tribal hamlets like Rampur and Bastar, operating one hundred percent offline with on-device SQLite storage and airplane mode resilience.',
+        highlightPills: ['📍 Rampur, Bastar, Araku Valley', '✈️ Airplane Mode Ready', '📦 On-Device SQLite Storage'],
+        focus: { startY: 0.15, endY: 0.55, startScale: 1.0, endScale: 1.07 }
+      },
+      {
+        id: 'voiceAudit',
+        duration: 18.0,
+        audioKey: 'voiceAudit',
+        screenKey: 'voiceAudit',
+        altScreenKey: 'applianceModal',
+        altSwitchRatio: 0.55,
+        screenBadge: 'SCREEN 2 OF 5',
+        title: 'VOICE-FIRST INDIC ENERGY AUDIT',
+        subtitle: 'Conversational Speech Recognition & Diesel Genset Tracking',
+        narration: 'Screen two demonstrates the Voice-First Energy Audit. Mitras conduct audits simply by speaking in Hindi and regional dialects without typing. UrjaMitra parses appliance wattages, daily kilowatt hours, and tracks costly diesel generator expenses.',
+        highlightPills: ['🎙️ Indic Voice NLP', '⚡ 7.08 kWh Daily Demand', '🛢️ ₹9,660 Diesel Replaced', '💡 LED & BLDC Profiler'],
+        focus: { startY: 0.35, endY: 0.75, startScale: 1.02, endScale: 1.09 }
+      },
+      {
+        id: 'feasibility',
+        duration: 17.5,
+        audioKey: 'feasibility',
+        screenKey: 'feasibilityHomestay',
+        altScreenKey: 'feasibilityMillet',
+        altSwitchRatio: 0.50,
+        screenBadge: 'SCREEN 3 OF 5',
+        title: 'LIVELIHOOD ENTERPRISE FEASIBILITY',
+        subtitle: 'PM-KUSUM Subsidy, Net Profit & Break-Even Modeling',
+        narration: 'Screen three highlights the Enterprise Feasibility Engine. It runs deterministic financial models for rural businesses such as tribal homestays and solar millet mills, calculating PM-KUSUM subsidies, net monthly profits, and payback periods.',
+        highlightPills: ['🏡 Tribal Homestay & Millet Mill', '🏛️ PM-KUSUM 30% Subsidy', '💰 ₹18,400 Monthly Net Profit', '⏱️ 1.8-Year Payback'],
+        focus: { startY: 0.25, endY: 0.65, startScale: 1.0, endScale: 1.08 }
+      },
+      {
+        id: 'recommendations',
+        duration: 16.8,
+        audioKey: 'recommendations',
+        screenKey: 'recommendations',
+        altScreenKey: 'tabletRecs',
+        altSwitchRatio: 0.55,
+        screenBadge: 'SCREEN 4 OF 5',
+        title: 'CLEAN ENERGY RECOMMENDATIONS',
+        subtitle: '2.5 kWp Solar PV Array & 48V LFP Lithium Battery Storage',
+        narration: 'Screen four delivers Clean Energy Recommendations. It automatically sizes rooftop solar PV arrays, forty-eight volt lithium iron phosphate batteries, and energy efficient appliances, completely eliminating diesel generators.',
+        highlightPills: ['☀️ 2.5 kWp Solar PV Array', '🔋 48V 100Ah LFP Battery', '🌿 425 kg Carbon Offset', '🚫 100% Zero Diesel Fuel'],
+        focus: { startY: 0.3, endY: 0.7, startScale: 1.0, endScale: 1.08 }
+      },
+      {
+        id: 'reportSync',
+        duration: 15.0,
+        audioKey: 'reportSync',
+        screenKey: 'reportSync',
+        altScreenKey: 'supervisorPortal',
+        altSwitchRatio: 0.55,
+        screenBadge: 'SCREEN 5 OF 5',
+        title: 'PANCHAYAT REPORT & CENTRAL SYNC',
+        subtitle: 'Official Bilingual PDF Export & Supervisor SQLite Sync',
+        narration: 'Screen five generates instant bilingual PDF audit reports for village Sarpanches. Field audits queue securely on-device and synchronize with the central SQLite supervisor database whenever connectivity is restored.',
+        highlightPills: ['📄 Official Bilingual PDF', '✍️ Sarpanch Signature Block', '🔄 SQLite Cloud Sync Queue', '👥 Supervisor Multi-Hamlet View'],
+        focus: { startY: 0.2, endY: 0.65, startScale: 1.0, endScale: 1.07 }
+      },
+      {
+        id: 'outro',
+        duration: 10.2,
+        audioKey: 'outro',
+        screenKey: 'tabletHome',
+        screenBadge: 'RURAL IMPACT',
+        title: 'URJAMITRA: EMPOWERING RURAL INDIA',
+        subtitle: 'Clean Energy Access • Zero Emissions • Decentralized Prosperity',
+        narration: 'UrjaMitra bridges the energy divide, bringing reliable clean power, economic resilience, and decentralized sustainability to rural India.',
+        highlightPills: ['🇮🇳 DRE Hackathon 2026', '🌱 Sustainable Livelihoods', '⚡ Energy Sovereignty', '🌍 100% Green Future'],
+        focus: { startY: 0.3, endY: 0.5, startScale: 1.0, endScale: 1.04 }
+      }
+    ];
+
+    let TOTAL_DURATION = SCENES.reduce((acc, s) => acc + s.duration, 0);
+
+    // Preload all screenshot images
+    async function loadScreenshots() {
+      let count = 0;
+      const total = Object.keys(SCREEN_URLS).length;
+      for (const [key, url] of Object.entries(SCREEN_URLS)) {
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = url;
+          img.onload = () => {
+            images[key] = img;
+            count++;
+            statusEl.textContent = `Loading screenshots: ${count}/${total} (${key})`;
+            resolve();
+          };
+          img.onerror = () => {
+            console.warn('Failed image load:', url);
+            images[key] = null;
+            count++;
+            resolve();
+          };
+        });
+      }
+    }
+
+    // Preload and decode neural voiceover audio files (Zero background noise)
+    async function loadAudioBuffers() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass();
+      audioDest = audioCtx.createMediaStreamDestination();
+
+      const entries = Object.entries(AUDIO_URLS);
+      let count = 0;
+      for (const [key, url] of entries) {
+        try {
+          const res = await fetch(url);
+          const arrayBuffer = await res.arrayBuffer();
+          audioBuffers[key] = await audioCtx.decodeAudioData(arrayBuffer);
+          count++;
+          statusEl.textContent = `Loading voiceovers: ${count}/${entries.length} (${key})`;
+        } catch (err) {
+          console.warn('Audio load error for key:', key, err);
+        }
+      }
+
+      // Exactly calibrate scene durations based on speech duration + gentle 0.6s breathing room
+      for (const scene of SCENES) {
+        const buf = audioBuffers[scene.audioKey];
+        if (buf && buf.duration) {
+          scene.duration = Math.round((buf.duration + 0.6) * 10) / 10;
+        }
+      }
+      TOTAL_DURATION = SCENES.reduce((acc, s) => acc + s.duration, 0);
+      console.log('Voiceovers loaded! Total presentation duration:', TOTAL_DURATION.toFixed(1) + 's');
+    }
+
+    // Play pure neural voiceover audio (Zero background music or sound effects)
+    function playVoiceover(audioKey) {
+      const buffer = audioBuffers[audioKey];
+      if (!buffer || !audioCtx) return;
+      const source = audioCtx.createBufferSource();
+      const voiceGain = audioCtx.createGain();
+
+      source.buffer = buffer;
+      // Full clarity clean voice output
+      voiceGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+
+      source.connect(voiceGain);
+      voiceGain.connect(audioDest);
+      voiceGain.connect(audioCtx.destination);
+
+      source.start(audioCtx.currentTime + 0.25); // 250ms natural pause before speaking
+    }
+
+    // Drawing variables
+    let startTime = null;
+    let currentSceneIndex = -1;
+    let mediaRecorder = null;
+    const recordedChunks = [];
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function drawFrame(now) {
+      const elapsed = (now - startTime) / 1000;
+      if (elapsed >= TOTAL_DURATION) {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+        return;
+      }
+
+      // Determine active scene
+      let accTime = 0;
+      let activeIndex = 0;
+      let sceneElapsed = 0;
+
+      for (let i = 0; i < SCENES.length; i++) {
+        if (elapsed < accTime + SCENES[i].duration) {
+          activeIndex = i;
+          sceneElapsed = elapsed - accTime;
+          break;
+        }
+        accTime += SCENES[i].duration;
+      }
+
+      const activeScene = SCENES[activeIndex];
+      const sceneProgress = Math.min(1.0, sceneElapsed / activeScene.duration);
+
+      // On scene change, trigger voiceover (Zero background sound)
+      if (activeIndex !== currentSceneIndex) {
+        currentSceneIndex = activeIndex;
+        playVoiceover(activeScene.audioKey);
+      }
+
+      // 1. Background Canvas
+      ctx.fillStyle = '#050913';
+      ctx.fillRect(0, 0, 1920, 1080);
+
+      // 2. Render Project Screen ("Show ONLY the screens of our project")
+      // Primary vs Alt Screen (Modal / Detailed View)
+      let currentScreenKey = activeScene.screenKey;
+      let crossfade = 0.0; // 0 = 100% primary, 1 = 100% alt
+
+      if (activeScene.altScreenKey) {
+        const switchPoint = activeScene.altSwitchRatio || 0.5;
+        const fadeWindow = 0.06; // smooth crossfade duration
+        if (sceneProgress < switchPoint - fadeWindow) {
+          currentScreenKey = activeScene.screenKey;
+          crossfade = 0.0;
+        } else if (sceneProgress > switchPoint + fadeWindow) {
+          currentScreenKey = activeScene.altScreenKey;
+          crossfade = 1.0;
+        } else {
+          // In transition window
+          crossfade = (sceneProgress - (switchPoint - fadeWindow)) / (2 * fadeWindow);
+        }
+      }
+
+      const imgA = images[activeScene.screenKey] || images.home;
+      const imgB = (activeScene.altScreenKey && images[activeScene.altScreenKey]) ? images[activeScene.altScreenKey] : imgA;
+
+      // Screen Frame Dimensions: occupies 96% width and 82% height of the 1080p canvas!
+      const frameX = 36;
+      const frameY = 58;
+      const frameW = 1848;
+      const frameH = 860;
+
+      // Draw Screen Container with rounded corners & glass edge
+      ctx.save();
+
+      // Subtle Outer Glow
+      ctx.shadowColor = 'rgba(16, 185, 129, 0.3)';
+      ctx.shadowBlur = 35;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 10;
+
+      ctx.fillStyle = '#0a101d';
+      ctx.beginPath();
+      ctx.roundRect(frameX, frameY, frameW, frameH, 16);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      // Clip to frame boundary
+      ctx.beginPath();
+      ctx.roundRect(frameX, frameY, frameW, frameH, 16);
+      ctx.clip();
+
+      // Dynamic Ken Burns Zoom & Focus Pan
+      const zoom = activeScene.focus.startScale + ((activeScene.focus.endScale - activeScene.focus.startScale) * sceneProgress);
+      const focusY = activeScene.focus.startY + ((activeScene.focus.endY - activeScene.focus.startY) * sceneProgress);
+
+      function renderScreenImage(img, opacity) {
+        if (!img) return;
+        ctx.globalAlpha = opacity;
+        const imgAspect = img.height / img.width;
+        const targetW = frameW * zoom;
+        const targetH = targetW * imgAspect;
+        const posX = frameX - ((targetW - frameW) / 2);
+        const maxScrollableY = Math.max(0, targetH - frameH);
+        const posY = frameY - (maxScrollableY * focusY);
+
+        ctx.drawImage(img, posX, posY, targetW, targetH);
+      }
+
+      if (crossfade <= 0.001) {
+        renderScreenImage(imgA, 1.0);
+      } else if (crossfade >= 0.999) {
+        renderScreenImage(imgB, 1.0);
+      } else {
+        renderScreenImage(imgA, 1.0 - crossfade);
+        renderScreenImage(imgB, crossfade);
+      }
+
+      ctx.globalAlpha = 1.0;
+
+      // Subtle screen vignette and edge glass reflection
+      const glare = ctx.createLinearGradient(frameX, frameY, frameX + frameW, frameY + frameH);
+      glare.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+      glare.addColorStop(0.3, 'rgba(255, 255, 255, 0.0)');
+      glare.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+      ctx.fillStyle = glare;
+      ctx.fillRect(frameX, frameY, frameW, frameH);
+
+      // Frame Border Outline
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect(frameX, frameY, frameW, frameH, 16);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // 3. Sleek Presentation Top Header Bar
+      ctx.fillStyle = 'rgba(5, 9, 18, 0.95)';
+      ctx.fillRect(0, 0, 1920, 52);
+
+      // Header bottom border
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, 52);
+      ctx.lineTo(1920, 52);
+      ctx.stroke();
+
+      // Top Left Brand Icon + Label
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(55, 26, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText('URJAMITRA (ऊर्जा मित्र)', 78, 32);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText('•   DRE HACKATHON 2026   •   PROJECT SCREENS PRESENTATION', 320, 32);
+
+      // Top Right Screen Index & Timer Badge
+      const timerStr = `${formatTime(elapsed)} / ${formatTime(TOTAL_DURATION)}`;
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(1650, 11, 234, 30, 15);
+      ctx.fill();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 13px "Consolas", monospace';
+      ctx.fillText(`SCENE ${activeIndex + 1}/${SCENES.length}   ${timerStr}`, 1670, 31);
+
+      // 4. Elegant Glass Presentation Captions HUD (Bottom 155px)
+      const hudX = 70;
+      const hudY = 905;
+      const hudW = 1780;
+      const hudH = 152;
+
+      ctx.save();
+      // Frosted Glass Dark Container
+      ctx.fillStyle = 'rgba(6, 11, 20, 0.94)';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 35;
+      ctx.shadowOffsetY = 8;
+      ctx.beginPath();
+      ctx.roundRect(hudX, hudY, hudW, hudH, 18);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      // Glowing emerald border
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Left Accent Vertical Indicator
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.roundRect(hudX + 16, hudY + 18, 5, hudH - 36, 3);
+      ctx.fill();
+
+      // Line 1: Screen Badge & Screen Title
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(activeScene.screenBadge.toUpperCase(), hudX + 36, hudY + 36);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(activeScene.title, hudX + 175, hudY + 36);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(`—   ${activeScene.subtitle.toUpperCase()}`, hudX + 185 + ctx.measureText(activeScene.title).width + 15, hudY + 36);
+
+      // Line 2: Prominent Spoken Caption / Explanation Text
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '500 21px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(activeScene.narration, hudX + 36, hudY + 76, hudW - 75);
+
+      // Line 3: Live Technical Highlight Pills
+      let pillX = hudX + 36;
+      const pillY = hudY + 102;
+      for (const pill of activeScene.highlightPills) {
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        const txtW = ctx.measureText(pill).width;
+        
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+        ctx.beginPath();
+        ctx.roundRect(pillX, pillY, txtW + 20, 24, 12);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#a7f3d0';
+        ctx.fillText(pill, pillX + 10, pillY + 16);
+
+        pillX += txtW + 30;
+      }
+
+      // Bottom Progress Bar inside HUD
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.fillRect(hudX + 4, hudY + hudH - 5, hudW - 8, 3);
+
+      const totalPct = Math.min(1.0, elapsed / TOTAL_DURATION);
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(hudX + 4, hudY + hudH - 5, (hudW - 8) * totalPct, 3);
+
+      ctx.restore();
+
+      requestAnimationFrame(drawFrame);
+    }
+
+    async function startRecording() {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch (e) {}
+      }
+      statusEl.textContent = 'Starting Clean Voice Video MediaRecorder (Zero Background Noise)...';
+
+      const canvasStream = canvas.captureStream(30);
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioDest.stream.getAudioTracks()
+      ]);
+
+      let mimeType = 'video/webm; codecs=vp9,opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm; codecs=vp8,opus';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm';
+      }
+
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 7500000 // 7.5 Mbps Full HD
+      });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const fullBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        const sizeMb = (fullBlob.size / (1024 * 1024)).toFixed(2);
+        statusEl.textContent = `Recording complete! Size: ${sizeMb} MB. Encoding Base64 payload...`;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          window.__RECORDED_VIDEO_BASE64__ = reader.result;
+          window.__RECORDING_DONE__ = true;
+          window.__TOTAL_BASE64_LEN__ = reader.result.length;
+          window.__getVideoChunk = (start, length) => {
+            return window.__RECORDED_VIDEO_BASE64__.substring(start, start + length);
+          };
+          statusEl.textContent = 'SUCCESS: Video ready for export!';
+        };
+        reader.readAsDataURL(fullBlob);
+      };
+
+      statusEl.textContent = `Recording UrjaMitra Presentation Video (${TOTAL_DURATION}s)...`;
+      mediaRecorder.start(1000);
+      startTime = performance.now();
+      requestAnimationFrame(drawFrame);
+    }
+
+    window.onload = async () => {
+      await loadScreenshots();
+      await loadAudioBuffers();
+      statusEl.textContent = 'All assets loaded! Ready to record presentation.';
+      window.__READY_TO_RECORD__ = true;
+    };
+
+    window.startVideoGeneration = () => {
+      startRecording();
+    };
+  </script>
+</body>
+</html>

@@ -520,8 +520,8 @@ export default function ScreenVoiceAudit({
             />
             <div className="gen-cost-indicator">
               <span>Estimated diesel expense:</span>
-              <strong className="gen-rupees">₹{summary.monthlyDieselExpense} / month</strong>
-              <small>({summary.monthlyDieselLitres} Litres diesel burned)</small>
+              <strong className="gen-rupees">₹{summary.monthlyDieselExpense?.toLocaleString('en-IN')} / month</strong>
+              <small>({summary.monthlyDieselLitres} L/mo • {summary.dieselConsumptionLPerHr} L/hr @ {summary.generatorLoadKW} kW load)</small>
             </div>
           </div>
         )}
